@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 BUILD_DIR = Path("bd")
+<<<<<<< HEAD
 IA_BUILD_DIR = Path("ia_bd")
 REPETITIONS = 1000
 
@@ -21,6 +22,18 @@ def find_benchmark(benchname: str, ia: str = ""):
             return bench_executable
         raise FileNotFoundError(f"Benchmark not found at {bench_executable}")
     
+=======
+REPETITIONS = 1000
+
+
+def find_benchmark(benchname):
+    bench_executable = BUILD_DIR / "src" / benchname / benchname
+    if bench_executable.is_file():
+        return bench_executable
+    raise FileNotFoundError(f"Benchmark not found at {bench_executable}")
+
+
+>>>>>>> 7e29fae5911eb15afa754b83495241c339d8f693
 def measure_size(executable):
     res = subprocess.run(["size", executable], capture_output=True, text=True)
     lines = res.stdout.strip().splitlines()
@@ -30,7 +43,10 @@ def measure_size(executable):
 
 def measure_perf(executable):
     cmd = [
+<<<<<<< HEAD
         "sudo",
+=======
+>>>>>>> 7e29fae5911eb15afa754b83495241c339d8f693
         "perf",
         "stat",
         "-x,",
@@ -77,12 +93,18 @@ def measure_dynamic_memory(executable):
 
 def main():
     if len(sys.argv) < 2:
+<<<<<<< HEAD
         print("Usage: python script2.py <benchmark> [IA_directory]", file=sys.stderr)
         sys.exit(1)
 
     bench = sys.argv[1]
     ia = sys.argv[2] if len(sys.argv) > 2 else ""
 
+=======
+        print("Usage: script2.py <benchmark1> ...")
+        sys.exit(1)
+
+>>>>>>> 7e29fae5911eb15afa754b83495241c339d8f693
     fieldnames = [
         "benchmark",
         "time_ms",
@@ -98,6 +120,7 @@ def main():
     writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
     writer.writeheader()
 
+<<<<<<< HEAD
     try:
         exe = find_benchmark(bench, ia)
 
@@ -120,6 +143,31 @@ def main():
         )
     except Exception as e:
         print(f"Error processing {bench}: {e}", file=sys.stderr)
+=======
+    for bench in sys.argv[1:]:
+        try:
+            exe = find_benchmark(bench)
+
+            time_ms, cycles, insts = measure_perf(exe)
+            text, data, bss = measure_size(exe)
+            dyn_mem = measure_dynamic_memory(exe)
+
+            writer.writerow(
+                {
+                    "benchmark": bench,
+                    "time_ms": time_ms,
+                    "cycles": cycles,
+                    "instructions": insts,
+                    "text": text,
+                    "data": data,
+                    "bss": bss,
+                    "ram_data_bss": data + bss,
+                    "dynamic_mem_bytes": dyn_mem,
+                }
+            )
+        except Exception as e:
+            print(f"Error processing {bench}: {e}", file=sys.stderr)
+>>>>>>> 7e29fae5911eb15afa754b83495241c339d8f693
 
 
 if __name__ == "__main__":
