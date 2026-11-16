@@ -84,6 +84,9 @@ def measure_size(exe):
     sizes = res.stdout.strip().splitlines()[1].split()
     return int(sizes[0]), int(sizes[1]), int(sizes[2])
 
+def std_pct(metrics, evento):
+    err = metrics[evento][1]
+    return round(err * REPETITIONS ** 0.5, 3) if err is not None else ""
 
 def measure_perf(exe):
     cmd = ["sudo", "env", "LC_ALL=C", "perf", "stat", "-x,", "-r", str(REPETITIONS),
@@ -99,16 +102,27 @@ def measure_perf(exe):
         parts = line.split(",")
         if len(parts) >= 3:
             try:
-                metrics[parts[2]] = float(parts[0])
+                val = float(parts[0])
             except ValueError:
-                pass  # <not counted> / <not supported>
+                continue # <not counted> / <not supported>
+            err = None
+            if len(parts) > 3 and parts[3].endswith("%"):
+                err = float(parts[3].rstrip("%"))
+            metrics[parts[2]] = (val, err)
 
     for k in ("task-clock", "cycles", "instructions"):
         if k not in metrics:
             raise RuntimeError(f"perf não retornou '{k}':\n{res.stderr}")
 
-    # task-clock já vem em milissegundos (tempo de CPU do processo)
-    return metrics["task-clock"], int(metrics["cycles"]), int(metrics["instructions"])
+    
+    return {
+        "time_ms": metrics["task-clock"][0],
+        "cycles": int(metrics["cycles"][0]),
+        "instructions": int(metrics["instructions"][0]),
+        "time_std_pct": std_pct(metrics, "task-clock"),
+        "cycles_std_pct": std_pct(metrics, "cycles"),
+        "instructions_std_pct": std_pct(metrics, "instructions"),
+    }
 
 
 def measure_dynamic_memory(exe):
@@ -130,7 +144,8 @@ def main():
     exclude = args.exclude or ["*standalone*"]
 
     fieldnames = ["benchmark", "variant", "verify_ok", "time_ms", "cycles", "instructions",
-                  "text", "data", "bss", "ram_data_bss", "dynamic_mem_bytes"]
+                  "text", "data", "bss", "ram_data_bss", "dynamic_mem_bytes", "time_std_pct",
+                  "cycles_std_pct", "instructions_std_pct"]
     writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
     writer.writeheader()
 
@@ -144,16 +159,16 @@ def main():
         if not ok:
             print(f"AVISO: {exe} NÃO passou na verificação do benchmark", file=sys.stderr)
 
-        time_ms, cycles, insts = measure_perf(exe)
+        perf = measure_perf(exe)
         text, data, bss = measure_size(exe)
         dyn = measure_dynamic_memory(exe)
 
         writer.writerow({
             "benchmark": args.benchmark, "variant": args.ia or "baseline",
             "verify_ok": "S" if ok else "N",
-            "time_ms": time_ms, "cycles": cycles, "instructions": insts,
+            **perf,
             "text": text, "data": data, "bss": bss, "ram_data_bss": data + bss,
-            "dynamic_mem_bytes": dyn,
+            "dynamic_mem_bytes": dyn
         })
     except Exception as e:
         print(f"Erro em {args.benchmark}: {e}", file=sys.stderr)
